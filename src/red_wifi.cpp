@@ -22,8 +22,10 @@ float customAltura = 1480;
 ConfigWM config;  // variables del dispositivo guardados en EEPROM
 
 WiFiManager wm;
-// ESP8266WebServer server(80);
-// String macAddress;  // ✅ Definición única aquí
+WiFiManagerParameter param_nombre;
+WiFiManagerParameter param_lat;
+WiFiManagerParameter param_lon;
+WiFiManagerParameter param_alt;
 
 const char* nombrePortal = "Sensor Ambiente";
 bool guardarConfig = false;  // flag para guardar en EEPROM callback WiFiManager
@@ -130,35 +132,6 @@ void configurar_wifi() {
   }
 
   if (guardarConfig) {
-    // 5. Guarda los valores ingresados en las variables
-    strncpy(customNombre, param_nombre.getValue(), SIZE_NOMBRE);
-    strncpy(customLatStr, param_lat.getValue(), SIZE_LAT_LON);
-    strncpy(customLonStr, param_lon.getValue(), SIZE_LAT_LON);
-    strncpy(customAltStr, param_alt.getValue(), SIZE_ALTURA);
-
-    customNombre[SIZE_NOMBRE - 1] = '\0';
-    customLatStr[SIZE_LAT_LON - 1] = '\0';
-    customLonStr[SIZE_LAT_LON - 1] = '\0';
-    customAltStr[SIZE_ALTURA - 1] = '\0';
-
-    // 6. Convierte lat/lon, altura a float
-    customLatitud = atof(customLatStr);
-    customLongitud = atof(customLonStr);
-    customAltura = atof(customAltStr);
-
-    if (customLatitud < -90 || customLatitud > 90 || customLongitud < -180 ||
-        customLongitud > 180) {
-      Serial.println("Coordenadas inválidas. Usando valores por defecto.");
-      customLatitud = 0.0;
-      customLongitud = 0.0;
-      strcpy(customLatStr, "0.0");
-      strcpy(customLonStr, "0.0");
-    }
-
-    if (customAltura < 0 || customAltura > 6000) {
-      customAltura = 1480;  // Valor por defecto si no es válido
-    }
-
     // 7. Guarda en la EEPROM (persistencia)
     strncpy(config.nombre, customNombre, SIZE_NOMBRE);
     strncpy(config.lat, customLatStr, SIZE_LAT_LON);
@@ -174,7 +147,64 @@ void configurar_wifi() {
 }
 
 void guardarConfigCallback() {
-  // Serial.println("Callback: Se solicitó guardar configuración.");
+  Serial.println("[CALLBACK] Validando y preparando nuevos parámetros...");
+
+  // 1. Obtener los valores del portal como Strings de Arduino para facilitar la
+  // manipulación.
+  String nombreStr_nuevo = param_nombre.getValue();
+  String latStr_nuevo = param_lat.getValue();
+  String lonStr_nuevo = param_lon.getValue();
+  String altStr_nuevo = param_alt.getValue();
+
+  // --- Validación del Nombre ---
+  // strncpy es perfecto aquí.
+  strncpy(customNombre, nombreStr_nuevo.c_str(), SIZE_NOMBRE);
+  customNombre[SIZE_NOMBRE - 1] = '\0';  // Asegurar terminación nula
+
+  // --- Validación de Coordenadas ---
+  // Reemplazamos comas por puntos para ser más flexibles con la entrada del
+  // usuario.
+  latStr_nuevo.replace(',', '.');
+  lonStr_nuevo.replace(',', '.');
+
+  float lat_temp = latStr_nuevo.toFloat();  // toFloat es más robusto que atof
+  float lon_temp = lonStr_nuevo.toFloat();
+
+  if (lat_temp >= -90.0 && lat_temp <= 90.0 && lon_temp >= -180.0 &&
+      lon_temp <= 180.0) {
+    // Si la validación PASA, actualizamos nuestras variables principales.
+    customLatitud = lat_temp;
+    customLongitud = lon_temp;
+
+    // Y también actualizamos las cadenas de texto por consistencia.
+    strncpy(customLatStr, latStr_nuevo.c_str(), SIZE_LAT_LON);
+    strncpy(customLonStr, lonStr_nuevo.c_str(), SIZE_LAT_LON);
+    customLatStr[SIZE_LAT_LON - 1] = '\0';
+    customLonStr[SIZE_LAT_LON - 1] = '\0';
+    Serial.println("✅ Coordenadas validadas y actualizadas.");
+  } else {
+    // OJO: Si la validación FALLA, no hacemos nada. Mantenemos los valores
+    // anteriores.
+    Serial.println(
+        "❌ Coordenadas inválidas. Se mantendrán los valores anteriores.");
+  }
+
+  // --- Validación de Altura ---
+  altStr_nuevo.replace(',', '.');
+  float alt_temp = altStr_nuevo.toFloat();
+
+  if (alt_temp >= -450.0 &&
+      alt_temp <= 8848.0) {  // Rango desde el Mar Muerto hasta el Everest
+    // Si la validación PASA, actualizamos la variable principal.
+    customAltura = alt_temp;
+    strncpy(customAltStr, altStr_nuevo.c_str(), SIZE_ALTURA);
+    customAltStr[SIZE_ALTURA - 1] = '\0';
+    Serial.println("✅ Altura validada y actualizada.");
+  } else {
+    // Si la validación FALLA, mantenemos el valor anterior.
+    Serial.println("❌ Altura inválida. Se mantendrá el valor anterior.");
+  }
+
   guardarConfig = true;
 }
 
