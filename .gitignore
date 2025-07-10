@@ -31,8 +31,8 @@ __pycache__/
 firebase-debug.log
 
 # === Archivos sensibles (si tienes claves o config locales) ===
-/secrets.h
-/credenciales.h
+src/credenciales.h
+src/secrets.h
 
 # === Archivos de pruebas si los dejas en tu proyecto ===
 test/
